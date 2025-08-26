@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>뉴스 자동 요약</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; max-width: 860px; margin: 40px auto; line-height: 1.6; }
+    input[type="text"] { width: 100%; padding: 10px 12px; box-sizing: border-box; }
+    button { padding: 8px 14px; cursor: pointer; }
+    ol { padding-left: 20px; }
+    .error { color: #c00; white-space: pre-wrap; }
+    .muted { color: #666; }
+    .row { margin: 10px 0; }
+  </style>
+</head>
+<body>
+  <h1>뉴스 자동 요약</h1>
+
+  <div class="row">
+    <input type="text" id="newsUrl" placeholder="네이버 뉴스 기사 URL을 입력하세요 (https://n.news.naver.com/...)" />
+  </div>
+  <div class="row">
+    <button id="btn" onclick="summarizeNews()">요약하기</button>
+    <span id="meta" class="muted"></span>
+  </div>
+
+  <h3>3줄 요약</h3>
+  <ol id="summaryResult"></ol>
+
+  <h3>키워드</h3>
+  <div id="keywords" class="row"></div>
+
+  <div id="error" class="error"></div>
+
+  <script>
+    // 동일 오리진의 /api로 고정 (포트·호스트가 바뀌어도 자동 추적)
+    const API_BASE = `${window.location.origin}/api`;
+
+    async function summarizeNews() {
+      const url = document.getElementById("newsUrl").value.trim();
+      const summaryEl = document.getElementById("summaryResult");
+      const keywordsEl = document.getElementById("keywords");
+      const errorEl = document.getElementById("error");
+      const metaEl = document.getElementById("meta");
+
+      errorEl.textContent = "";
+      metaEl.textContent = "";
+      keywordsEl.textContent = "";
+      summaryEl.innerHTML = "";
+
+      if (!url) {
+        alert("뉴스 기사 URL을 입력하세요.");
+        return;
+      }
+      if (!/^https?:\/\//i.test(url)) {
+        errorEl.textContent = "유효한 URL 형식이 아닙니다. http:// 또는 https:// 로 시작해야 합니다.";
+        return;
+      }
+
+      summaryEl.innerHTML = "<li>불러오는 중...</li>";
+
+      try {
+        const res = await fetch(`${API_BASE}/summarize-url`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url })
+        });
+
+        if (!res.ok) {
+          let msg = `요청 실패 (HTTP ${res.status})`;
+          try {
+            const e = await res.json();
+            if (e && e.detail) msg += `\n상세: ${e.detail}`;
+          } catch (_) {}
+          throw new Error(msg);
+        }
+
+        const data = await res.json();
+
+        if (!data.summary_3lines || !Array.isArray(data.summary_3lines) || data.summary_3lines.length === 0) {
+          summaryEl.innerHTML = "<li>요약 결과가 비어 있습니다.</li>";
+        } else {
+          summaryEl.innerHTML = data.summary_3lines.map(line => `<li>${escapeHtml(line)}</li>`).join("");
+        }
+
+        if (data.keywords && Array.isArray(data.keywords)) {
+          keywordsEl.textContent = data.keywords.join(", ");
+        }
+
+        if (data.meta && data.meta.url) {
+          metaEl.textContent = `분석 URL: ${data.meta.url}${data.meta.content_len ? ` · 본문 길이: ${data.meta.content_len}` : ""}`;
+        }
+      } catch (err) {
+        summaryEl.innerHTML = "";
+        errorEl.textContent = err?.message || String(err);
+      }
+    }
+
+    function escapeHtml(str) {
+      return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+  </script>
+</body>
+</html>

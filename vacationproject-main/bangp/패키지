@@ -1,0 +1,15 @@
+pip install fastapi
+pip install "uvicorn[standard]"
+pip install transformers>=4.41.0
+pip install torch
+pip install sentence-transformers
+pip install keybert
+pip install trafilatura
+pip install beautifulsoup4
+pip install regex
+pip install python-multipart
+
+
+
+서버실행
+python -m uvicorn main:app --reload
